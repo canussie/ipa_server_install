@@ -55,23 +55,76 @@ message:
 from ansible.module_utils.basic import AnsibleModule
 import os
 import subprocess
+import re
 
 def ipa_stuff(name, domain):
-    
-    # create output array
-    output = [0] * 2
-    # try to run ipa-server-install
-    try:
-      output[0] = subprocess.check_output(["/sbin/ipa-server-install", "-p", "XXX", "-a", "XXXX", "--hostname=ipa1.example.com", "-n", "example.com", "-r", "example.com", "--forwarder=8.8.8.8", "--setup-dns", "-U"], stderr=subprocess.STDOUT)
-      output[1] = 0
-    # on error, return error and false
-    except subprocess.CalledProcessError as e:
-      output[0] = e.output
-      output[1] = 1
 
-    return output
-    
-
+  # define output dict with some sane defaults
+  results = {
+    "output": "",
+    "rc": "0",
+    "change": True,
+  }
+  # 
+  # attempt to run the IPA install 
+  #
+  try:
+    #
+    # set the values to reflect a successful run
+    #
+    results["output"] = subprocess.check_output(["/sbin/ipa-server-install", "-p", "", "-a", "", "--hostname=ipa1.", "-n", "", "-r", "", "--forwarder=8.8.8.8", "--setup-dns", "-U"], stderr=subprocess.STDOUT)
+    results["rc"] = 0
+    results["change"] = True
+  #
+  # catch any exceptions 
+  #
+  except subprocess.CalledProcessError as e:
+    #
+    # place the error in the dict, set change to false and change return code to error (1)
+    #
+    results["output"] = e.output
+    results["change"] = False
+    results["rc"] = 1
+    #
+    # split the command output by newline
+    #
+    search_output = results["output"].split('\n')
+    #
+    # iterate through array
+    #
+    for x in search_output:
+      #
+      # check if error is due to ipa already being configured
+      #
+      regexpgroup = re.search('^.*already exists in DNS.*(server\(s\))\:\s(.+)\.$', x)
+      #
+      # if failure is due to zone already being managed by a DNS master do some more checks
+      #
+      if regexpgroup:
+        # 
+        # check hostname of ipa server
+        #
+        hostname = subprocess.check_output("hostname").rstrip()
+        #print "Found something"
+        #
+        # get DNS server name hosting zone requested
+        #
+        dnshost = regexpgroup.group(2).rstrip()
+        #print dnshost
+        #print hostname
+        #
+        # if hostnames match, change error to a non failure for idempotent
+        #
+        if hostname == dnshost:
+          results["output"] = "IPA already configured on server."
+          results["rc"] = 0
+          results["change"] = False
+  #
+  # return result dict 
+  #
+  return results
+      
+  
 def run_module():
     # define the available arguments/parameters that a user can pass to
     # the module
@@ -112,18 +165,11 @@ def run_module():
     # if domain specified
     #if module.params['domain']:
     #  result['changed'] = True
-    output = ipa_stuff(module.params['name'], module.params['domain'])
+    joinstate = ipa_stuff(module.params['name'], module.params['domain'])
 
-    result['output'] = output[0]
-    result['rc'] = output[1]
-
-    if not output[1]:
-      result['changed'] = True
-      result['message'] = "Module Success!"
-
-    else:
-      result['message'] = "Module failed!"
-
+    result['message'] = joinstate["output"]
+    result['rc'] = joinstate["rc"]
+    result['changed'] = joinstate["change"]
 
     # during the execution of the module, if there is an exception or a
     # conditional state that effectively causes a failure, run
