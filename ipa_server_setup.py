@@ -57,8 +57,15 @@ import os
 import subprocess
 import re
 
-def ipa_stuff(name, domain):
-
+def ipa_stuff(params):
+  #
+  # get parameters from args dict
+  #
+  ipahostname = "--hostname=" + params["hostname"]
+  adminpass = params["adminpass"]
+  dmpass = params["dmpass"]
+  domainname = params["domainname"]
+  realmname = params["realmname"]
   # define output dict with some sane defaults
   results = {
     "output": "",
@@ -72,7 +79,7 @@ def ipa_stuff(name, domain):
     #
     # set the values to reflect a successful run
     #
-    results["output"] = subprocess.check_output(["/sbin/ipa-server-install", "-p", "", "-a", "", "--hostname=ipa1.", "-n", "", "-r", "", "--forwarder=8.8.8.8", "--setup-dns", "-U"], stderr=subprocess.STDOUT)
+    results["output"] = subprocess.check_output(["/sbin/ipa-server-install", "-p", dmpass, "-a", adminpass, ipahostname, "-n", domainname, "-r", realmname, "--forwarder=8.8.8.8", "--setup-dns", "-U"], stderr=subprocess.STDOUT)
     results["rc"] = 0
     results["change"] = True
   #
@@ -129,8 +136,11 @@ def run_module():
     # define the available arguments/parameters that a user can pass to
     # the module
     module_args = dict(
-        name=dict(type='str', required=True),
-        domain=dict(type='str', required=False)
+        hostname=dict(type='str', required=True),
+        adminpass=dict(type='str', required=True),
+        dmpass=dict(type='str', required=True),
+        domainname=dict(type='str', required=True),
+        realmname=dict(type='str', required=True)
     )
 
     # seed the result dict in the object
@@ -165,7 +175,15 @@ def run_module():
     # if domain specified
     #if module.params['domain']:
     #  result['changed'] = True
-    joinstate = ipa_stuff(module.params['name'], module.params['domain'])
+    ipa_params = {
+      "hostname": module.params["hostname"],
+      "adminpass": module.params["adminpass"],
+      "dmpass": module.params["dmpass"],
+      "domainname": module.params["domainname"],
+      "realmname": module.params["realmname"]
+    }
+
+    joinstate = ipa_stuff(ipa_params)
 
     result['message'] = joinstate["output"]
     result['rc'] = joinstate["rc"]
@@ -174,7 +192,7 @@ def run_module():
     # during the execution of the module, if there is an exception or a
     # conditional state that effectively causes a failure, run
     # AnsibleModule.fail_json() to pass in the message and the result
-    if module.params['name'] == 'fail me':
+    if module.params['hostname'] == 'fail me':
         module.fail_json(msg='You requested this to fail', **result)
 
     # in the event of a successful module execution, you will want to
