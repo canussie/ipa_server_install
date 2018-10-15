@@ -66,12 +66,23 @@ def ipa_stuff(params):
   dmpass = params["dmpass"]
   domainname = params["domainname"]
   realmname = params["realmname"]
+  setupdns = params["setupdns"]
+  #forwarder = "--forwarder=" + params["forwarder"] 
   # define output dict with some sane defaults
   results = {
     "output": "",
     "rc": "0",
     "change": True,
   }
+
+  config_array = ["/sbin/ipa-server-install", "-p", dmpass, "-a", adminpass, ipahostname, "-n", domainname, "-r", realmname, "-U"]
+
+  # check if DNS is being configured
+  if setupdns:
+    forwarder = "--forwarder=" + params["forwarder"] 
+    config_array.append("--setup-dns")
+    config_array.append(forwarder)
+
   # 
   # attempt to run the IPA install 
   #
@@ -79,7 +90,8 @@ def ipa_stuff(params):
     #
     # set the values to reflect a successful run
     #
-    results["output"] = subprocess.check_output(["/sbin/ipa-server-install", "-p", dmpass, "-a", adminpass, ipahostname, "-n", domainname, "-r", realmname, "--forwarder=8.8.8.8", "--setup-dns", "-U"], stderr=subprocess.STDOUT)
+    #results["output"] = subprocess.check_output(["/sbin/ipa-server-install", "-p", dmpass, "-a", adminpass, ipahostname, "-n", domainname, "-r", realmname, forwarder, "--setup-dns", "-U"], stderr=subprocess.STDOUT)
+    results["output"] = subprocess.check_output(config_array, stderr=subprocess.STDOUT)
     results["rc"] = 0
     results["change"] = True
   #
@@ -104,6 +116,7 @@ def ipa_stuff(params):
       # check if error is due to ipa already being configured
       #
       regexpgroup = re.search('^.*already exists in DNS.*(server\(s\))\:\s(.+)\.$', x)
+      regexpgroup2 = re.search('^.*IPA server is already configured.*$', x)
       #
       # if failure is due to zone already being managed by a DNS master do some more checks
       #
@@ -112,7 +125,6 @@ def ipa_stuff(params):
         # check hostname of ipa server
         #
         hostname = subprocess.check_output("hostname").rstrip()
-        #print "Found something"
         #
         # get DNS server name hosting zone requested
         #
@@ -126,6 +138,11 @@ def ipa_stuff(params):
           results["output"] = "IPA already configured on server."
           results["rc"] = 0
           results["change"] = False
+      if regexpgroup2:
+          results["output"] = "IPA already configured on server."
+          results["rc"] = 0
+          results["change"] = False
+
   #
   # return result dict 
   #
@@ -140,9 +157,11 @@ def run_module():
         adminpass=dict(type='str', required=True),
         dmpass=dict(type='str', required=True),
         domainname=dict(type='str', required=True),
-        realmname=dict(type='str', required=True)
+        realmname=dict(type='str', required=True),
+        setupdns=dict(type='bool', required=True),
+        forwarder=dict(type='str', required=False)
     )
-
+   
     # seed the result dict in the object
     # we primarily care about changed and state
     # change is if this module effectively modified the target
@@ -161,7 +180,7 @@ def run_module():
         argument_spec=module_args,
         supports_check_mode=True
     )
-
+   
     # if the user is working with this module in only check mode we do not
     # want to make any changes to the environment, just return the current
     # state with no modifications
@@ -172,17 +191,30 @@ def run_module():
     # part where your module will do what it needs to do)
     #result['message'] = 'goodbye'
 
-    # if domain specified
-    #if module.params['domain']:
-    #  result['changed'] = True
     ipa_params = {
       "hostname": module.params["hostname"],
       "adminpass": module.params["adminpass"],
       "dmpass": module.params["dmpass"],
       "domainname": module.params["domainname"],
-      "realmname": module.params["realmname"]
+      "realmname": module.params["realmname"],
+      "setupdns": module.params["setupdns"]
     }
 
+    # if dns configured, add forwarders to ipa_params dict.
+    if module.params["setupdns"] == True:
+      # check if forwarder passed in
+      if module.params["forwarder"]:
+        ipa_params["forwarder"] = module.params["forwarder"]
+      # if no forwarder configured, throw a useful error and exit
+      else:
+        result['message'] = "Error: no dns forwarder configured, required forwarder: XXX.XXX.XXX.XXX parameter"
+        result['rc'] = 1
+        result['changed'] = False
+        module.exit_json(**result)
+        return result
+    #
+    # pass parameters to ipa_stuff and configure ipa server, capture output in dict
+    #
     joinstate = ipa_stuff(ipa_params)
 
     result['message'] = joinstate["output"]
