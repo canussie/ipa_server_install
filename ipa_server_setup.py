@@ -27,21 +27,33 @@ author:
 '''
 
 EXAMPLES = '''
-# Pass in a message
-- name: Test with a message
-  my_new_test_module:
-    name: hello world
 
-# pass in a message and have changed true
-- name: Test with a message and changed output
-  my_new_test_module:
-    name: hello world
-    new: true
+# If possible, don't put passwords in playbooks, use variables encrypted with vault
+# https://docs.ansible.com/ansible/latest/user_guide/playbooks_vault.html
 
-# fail the module
-- name: Test failure of the module
-  my_new_test_module:
-    name: fail me
+# Configure an IPA server including setting up a dns server
+- name: configure ipa server
+  ipa_server_setup:
+    hostname: ipa1.ben.home
+    adminpass: "{{ admin_pass }}"
+    dmpass: "{{ admin_pass }}"
+    realmname: ben.home
+    domainname: ben.home
+    setupdns: True
+    forwarder: 8.8.8.8
+  no_log: true
+
+# Configure an IPA server without a dns server
+- name: configure ipa server
+  ipa_server_setup:
+    hostname: ipa1.ben.home
+    adminpass: "{{ admin_pass }}"
+    dmpass: "{{ admin_pass }}"
+    realmname: ben.home
+    domainname: ben.home
+    setupdns: False 
+  no_log: true
+
 '''
 
 RETURN = '''
