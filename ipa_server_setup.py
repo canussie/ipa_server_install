@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 ANSIBLE_METADATA = {
-    'metadata_version': '1.0',
+    'metadata_version': '1.1',
     'status': ['preview'],
     'supported_by': 'community'
 }
@@ -18,9 +18,43 @@ description:
     - "After installing the ipa-server package, use this module to ipa-server configured and running"
 
 options:
-
-extends_documentation_fragment:
-    - ipa-server 
+  hostname:
+    description: 
+      - Hostname of the ipa server you wish to configure.
+    required: true
+    type: string
+  adminpass:
+    description: 
+      - Kerberos admin user password
+    required: true
+    type: string
+  dmpass:
+    description: 
+      - Directory manager admin user password
+    required: true
+    type: string
+  realmname:
+    description: 
+      - Kerberos realm domain name
+    required: true
+    type: string
+  domainname:
+    description: 
+      - DNS domain name
+    required: true
+    type: string
+  setupdns:
+    description: 
+      - Setup a DNS server
+      - True or False value
+    required: true
+    type: boolean
+  forwarder:
+    description: 
+      - Configure DNS forwarders
+      - only required if setupdns is set to True
+    required: false
+    type: string
 
 author:
     - Ben Lewis
